@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using SalesDashboard.Api.Data;
 using SalesDashboard.Api.Entities;
 using SalesDashboard.Api.Services;
@@ -15,6 +17,9 @@ public class AnalyticsServiceTests
             .Options;
         return new AppDbContext(opts);
     }
+
+    private static AnalyticsService NewSvc(AppDbContext db) =>
+        new(db, new MemoryCache(new MemoryCacheOptions()), NullLogger<AnalyticsService>.Instance);
 
     private static void SeedBasic(AppDbContext db)
     {
@@ -54,7 +59,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(3, 1, date, SaleStatus.Refunded,  100, 50, qty: 5));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
         var kpi = await svc.GetKpiAsync(date.AddDays(-1), date.AddDays(1), default);
 
         Assert.Equal(200m, kpi.Revenue);
@@ -74,7 +79,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(1, 1, date, SaleStatus.Paid, 1000, 600));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
         var kpi = await svc.GetKpiAsync(date.AddDays(-1), date.AddDays(1), default);
 
         Assert.Equal(40m, kpi.Margin);
@@ -92,7 +97,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(3, 1, date, SaleStatus.Paid, 300, 150));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
         var kpi = await svc.GetKpiAsync(date.AddDays(-1), date.AddDays(1), default);
 
         Assert.Equal(600m, kpi.Revenue);
@@ -105,7 +110,7 @@ public class AnalyticsServiceTests
     {
         var db = NewDb();
         SeedBasic(db);
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
 
         var kpi = await svc.GetKpiAsync(
             new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -131,7 +136,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(3, 2, date, SaleStatus.Paid, 200, 100));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
 
         var byGp = await svc.GetManagerRatingsAsync(date.AddDays(-1), date.AddDays(1), "grossProfit", default);
         Assert.Equal("Иван Петров", byGp[0].FullName);
@@ -151,7 +156,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(2, 2, date, SaleStatus.Paid, 1000, 500));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
         var list = await svc.GetManagerRatingsAsync(date.AddDays(-1), date.AddDays(1), "grossProfit", default);
 
         Assert.Equal(2, list.Count);
@@ -172,7 +177,7 @@ public class AnalyticsServiceTests
         db.Sales.Add(MakeSale(3, 1, d2, SaleStatus.Paid, 300, 150));
         await db.SaveChangesAsync();
 
-        var svc = new AnalyticsService(db);
+        var svc = NewSvc(db);
         var timeline = await svc.GetTimelineAsync(d1.AddDays(-1), d2.AddDays(1), "day", default);
 
         Assert.Equal(2, timeline.Count);

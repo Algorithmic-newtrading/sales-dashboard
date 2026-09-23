@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using SalesDashboard.Api.Data;
 using SalesDashboard.Api.Dtos;
 using SalesDashboard.Api.Entities;
@@ -8,12 +10,53 @@ namespace SalesDashboard.Api.Services;
 public class AnalyticsService
 {
     private readonly AppDbContext _db;
-    public AnalyticsService(AppDbContext db) => _db = db;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<AnalyticsService> _logger;
+
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
+
+    public AnalyticsService(
+        AppDbContext db,
+        IMemoryCache cache,
+        ILogger<AnalyticsService> logger)
+    {
+        _db = db;
+        _cache = cache;
+        _logger = logger;
+    }
 
     // Бизнес-правило: в выручку попадают только Paid-продажи.
     // Cancelled и Refunded исключаются из всех агрегатов.
     private IQueryable<Sale> Paid(IQueryable<Sale> q) =>
         q.Where(s => s.Status == SaleStatus.Paid);
+
+    /// <summary>
+    /// Кэширует результат, если запрошенный период полностью в прошлом.
+    /// Текущий день не кэшируется — данные могут меняться.
+    /// </summary>
+    private async Task<T> CachedAsync<T>(
+        string keyPrefix,
+        DateTime from,
+        DateTime to,
+        Func<Task<T>> factory)
+    {
+        var today = DateTime.UtcNow.Date;
+        var isPastPeriod = to <= today;
+
+        if (!isPastPeriod)
+            return await factory();
+
+        var key = $"{keyPrefix}:{from:O}:{to:O}";
+        if (_cache.TryGetValue(key, out T? cached) && cached != null)
+        {
+            _logger.LogDebug("Cache hit: {Key}", key);
+            return cached;
+        }
+
+        var result = await factory();
+        _cache.Set(key, result, CacheTtl);
+        return result;
+    }
 
     private async Task<(decimal rev, decimal gp, int cnt, decimal margin, decimal avg)>
         Aggregate(DateTime from, DateTime to, CancellationToken ct)
@@ -40,24 +83,27 @@ public class AnalyticsService
 
     public async Task<KpiDto> GetKpiAsync(DateTime from, DateTime to, CancellationToken ct)
     {
-        var (rev, gp, cnt, margin, avg) = await Aggregate(from, to, ct);
+        return await CachedAsync("kpi", from, to, async () =>
+        {
+            var (rev, gp, cnt, margin, avg) = await Aggregate(from, to, ct);
 
-        var len = to - from;
-        var prevFrom = from - len;
-        var prevTo = from;
-        var (prevRev, prevGp, _, prevMargin, prevAvg) = await Aggregate(prevFrom, prevTo, ct);
+            var len = to - from;
+            var prevFrom = from - len;
+            var prevTo = from;
+            var (prevRev, prevGp, _, prevMargin, prevAvg) = await Aggregate(prevFrom, prevTo, ct);
 
-        var ratings = await GetManagerRatingsAsync(from, to, "grossProfit", ct);
-        var best = ratings.FirstOrDefault();
+            var ratings = await GetManagerRatingsAsync(from, to, "grossProfit", ct);
+            var best = ratings.FirstOrDefault();
 
-        return new KpiDto(
-            rev, gp, margin, cnt, avg,
-            best?.FullName,
-            best?.GrossProfit,
-            Delta(rev, prevRev),
-            Delta(gp, prevGp),
-            prevMargin == 0 ? 0 : Math.Round((margin - prevMargin) / prevMargin * 100, 2),
-            Delta(avg, prevAvg));
+            return new KpiDto(
+                rev, gp, margin, cnt, avg,
+                best?.FullName,
+                best?.GrossProfit,
+                Delta(rev, prevRev),
+                Delta(gp, prevGp),
+                prevMargin == 0 ? 0 : Math.Round((margin - prevMargin) / prevMargin * 100, 2),
+                Delta(avg, prevAvg));
+        });
     }
 
     public async Task<List<ManagerRatingDto>> GetManagerRatingsAsync(
@@ -109,35 +155,38 @@ public class AnalyticsService
     public async Task<List<TimelinePointDto>> GetTimelineAsync(
         DateTime from, DateTime to, string granularity, CancellationToken ct)
     {
-        var raw = await Paid(_db.Sales)
-            .Where(s => s.Date >= from && s.Date < to)
-            .SelectMany(s => s.Items.Select(i => new { s.Date, i.Quantity, i.UnitPrice, i.UnitCost }))
-            .GroupBy(x => x.Date.Date)
-            .Select(g => new
-            {
-                Date = g.Key,
-                Revenue = g.Sum(x => (decimal?)(x.Quantity * x.UnitPrice)) ?? 0m,
-                Cost = g.Sum(x => (decimal?)(x.Quantity * x.UnitCost)) ?? 0m,
-                SalesCount = g.Count(),
-            })
-            .OrderBy(x => x.Date)
-            .ToListAsync(ct);
-
-        if (granularity == "month")
+        return await CachedAsync($"timeline:{granularity}", from, to, async () =>
         {
-            return raw
-                .GroupBy(x => new DateTime(x.Date.Year, x.Date.Month, 1))
-                .Select(g => new TimelinePointDto(
-                    g.Key,
-                    g.Sum(x => x.Revenue),
-                    g.Sum(x => x.Revenue - x.Cost),
-                    g.Sum(x => x.SalesCount)))
+            var raw = await Paid(_db.Sales)
+                .Where(s => s.Date >= from && s.Date < to)
+                .SelectMany(s => s.Items.Select(i => new { s.Date, i.Quantity, i.UnitPrice, i.UnitCost }))
+                .GroupBy(x => x.Date.Date)
+                .Select(g => new
+                {
+                    Date = g.Key,
+                    Revenue = g.Sum(x => (decimal?)(x.Quantity * x.UnitPrice)) ?? 0m,
+                    Cost = g.Sum(x => (decimal?)(x.Quantity * x.UnitCost)) ?? 0m,
+                    SalesCount = g.Count(),
+                })
                 .OrderBy(x => x.Date)
-                .ToList();
-        }
+                .ToListAsync(ct);
 
-        return raw.Select(x =>
-            new TimelinePointDto(x.Date, x.Revenue, x.Revenue - x.Cost, x.SalesCount)).ToList();
+            if (granularity == "month")
+            {
+                return raw
+                    .GroupBy(x => new DateTime(x.Date.Year, x.Date.Month, 1))
+                    .Select(g => new TimelinePointDto(
+                        g.Key,
+                        g.Sum(x => x.Revenue),
+                        g.Sum(x => x.Revenue - x.Cost),
+                        g.Sum(x => x.SalesCount)))
+                    .OrderBy(x => x.Date)
+                    .ToList();
+            }
+
+            return raw.Select(x =>
+                new TimelinePointDto(x.Date, x.Revenue, x.Revenue - x.Cost, x.SalesCount)).ToList();
+        });
     }
 
     public async Task<List<CategoryStatDto>> GetCategoriesAsync(DateTime from, DateTime to, CancellationToken ct)
