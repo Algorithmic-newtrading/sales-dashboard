@@ -1,5 +1,7 @@
 # Sales Performance Dashboard
 
+[![CI](https://github.com/Algorithmic-newtrading/sales-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Algorithmic-newtrading/sales-dashboard/actions/workflows/ci.yml)
+
 Full-Stack приложение для анализа продаж менеджеров отдела. Backend на ASP.NET Core 8 + EF Core + PostgreSQL, frontend на React + TypeScript. Поднимается одной командой `docker compose up --build`.
 
 ## Скриншоты
@@ -57,11 +59,15 @@ docker compose up --build
 | Frontend | React 19, TypeScript, Vite, TanStack Query, Recharts, Tailwind CSS, Framer Motion, Zustand |
 | База | PostgreSQL 16 |
 | Инфраструктура | Docker, Docker Compose, nginx |
+| CI | GitHub Actions (backend + frontend jobs) |
 
 ## Структура
 
 ```
 sales-dashboard/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # GitHub Actions
 ├── backend/
 │   ├── SalesDashboard.Api/         # ASP.NET Core Web API
 │   │   ├── Controllers/            # REST-эндпоинты
@@ -225,9 +231,9 @@ smoothed[i] = α × raw[i] + (1 − α) × smoothed[i−1]
 - 88% продаж Paid, 7% Cancelled, 5% Refunded
 - 1–4 позиции в продаже
 
-## Тесты
+## Тесты и CI
 
-Проект покрыт автоматическими тестами — **12 штук**.
+Проект покрыт автоматическими тестами — **12 штук**. GitHub Actions прогоняет их при каждом push и pull request.
 
 ### Backend (xUnit, 7 тестов)
 
@@ -259,13 +265,21 @@ cd frontend
 npm run test
 ```
 
+### CI (GitHub Actions)
+
+Workflow `.github/workflows/ci.yml` — два параллельных job'а:
+
+- **Backend (.NET 8)** — `dotnet restore` + `build` + `test`
+- **Frontend (Node 20)** — `npm ci` + `build` + `test`
+
+Статус: [![CI](https://github.com/Algorithmic-newtrading/sales-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Algorithmic-newtrading/sales-dashboard/actions/workflows/ci.yml)
+
 ## Что не успели за 8 часов
 
 Всё заявленное в ТЗ и продуктовых инициативах реализовано.
 
 ## Что улучшили бы дальше
 
-- CI/CD через GitHub Actions (автозапуск тестов и сборки)
 - Экспорт в Excel / PDF
 - Кэширование KPI-запросов (Redis или in-memory на 30 секунд)
 - Партиционирование таблицы Sales по дате при росте до сотен тысяч записей
@@ -309,10 +323,12 @@ Vite-прокси автоматически направляет `/api/*` на 
 | Scatter plot | 30 мин |
 | CSV-экспорт + сглаживание | 30 мин |
 | Тесты (backend + frontend) | 1 ч |
+| CI (GitHub Actions) | 30 мин |
+| Скриншоты + README | 30 мин |
 | Отладка (DateTime, Recharts, Vite proxy) | 1.5 ч |
 | Docker Compose + nginx | 30 мин |
 | Документация | 45 мин |
-| **Итого** | **~9 ч** |
+| **Итого** | **~10 ч** |
 
 ## Лицензия
 
