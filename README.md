@@ -181,13 +181,25 @@ PostgreSQL хранит `timestamp with time zone`. Npgsql требует `DateT
 - 88% продаж Paid, 7% Cancelled, 5% Refunded
 - 1–4 позиции в продаже
 
-## Что не успели за 8 часов
+## Тесты
 
-- Unit-тесты backend (xUnit) и frontend (Vitest) — базовые сценарии расчёта KPI готовы, но не покрыты автоматическими тестами
-- Scatter plot (сравнение менеджеров по марже vs объёму)
-- Экспорт данных в CSV
-- Экспоненциальное сглаживание на графике динамики
-- Кэширование запросов TanStack Query настроено, но без prefetch
+Проект покрыт автоматическими тестами — **12 штук**.
+
+### Backend (xUnit, 7 тестов)
+
+- KPI исключает Cancelled и Refunded
+- Margin = Gross Profit / Revenue × 100%
+- Average Check = Revenue / SalesCount
+- Пустой период → все метрики = 0
+- Рейтинг менеджеров: сортировка по Gross Profit и Average Check
+- Рейтинг: одинаковые результаты → одинаковый ранг
+- Timeline: группировка по дням
+
+Запуск:
+
+```bash
+cd backend
+dotnet test
 
 ## Что улучшили бы дальше
 
