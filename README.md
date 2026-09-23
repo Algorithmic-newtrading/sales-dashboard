@@ -2,6 +2,20 @@
 
 Full-Stack приложение для анализа продаж менеджеров отдела. Backend на ASP.NET Core 8 + EF Core + PostgreSQL, frontend на React + TypeScript. Поднимается одной командой `docker compose up --build`.
 
+## Скриншоты
+
+### Dashboard — KPI, динамика, категории, scatter plot
+
+![Dashboard top](docs/dashboard-top.png)
+
+### Рейтинг менеджеров
+
+![Rating](docs/dashboard-rating.png)
+
+### Последние продажи
+
+![Recent sales](docs/dashboard-sales.png)
+
 ## Запуск
 
 Требования: установленный Docker Desktop (Windows / macOS / Linux).
@@ -66,6 +80,7 @@ sales-dashboard/
 │       ├── pages/                  # Dashboard
 │       ├── types/                  # TS-типы DTO
 │       └── utils/                  # csv, smooth
+├── docs/                           # скриншоты дашборда
 ├── docker-compose.yml
 ├── README.md
 ├── AI_PROMPTS.md
@@ -250,6 +265,7 @@ npm run test
 
 ## Что улучшили бы дальше
 
+- CI/CD через GitHub Actions (автозапуск тестов и сборки)
 - Экспорт в Excel / PDF
 - Кэширование KPI-запросов (Redis или in-memory на 30 секунд)
 - Партиционирование таблицы Sales по дате при росте до сотен тысяч записей
