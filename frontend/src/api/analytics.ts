@@ -9,6 +9,13 @@ import type {
   RecentSale,
 } from "../types";
 
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
 export const getKpi = (r: Range) =>
   api.get<Kpi>("/analytics/kpi", { params: r }).then((x) => x.data);
 
@@ -30,7 +37,13 @@ export const getTopProducts = (r: Range, limit = 10) =>
     .get<TopProduct[]>("/analytics/top-products", { params: { ...r, limit } })
     .then((x) => x.data);
 
-export const getRecentSales = (r: Range, limit = 20) =>
+export const getRecentSales = (
+  r: Range,
+  offset = 0,
+  limit = 15,
+): Promise<PagedResult<RecentSale>> =>
   api
-    .get<RecentSale[]>("/analytics/recent-sales", { params: { ...r, limit } })
+    .get<PagedResult<RecentSale>>("/analytics/recent-sales", {
+      params: { ...r, offset, limit },
+    })
     .then((x) => x.data);
