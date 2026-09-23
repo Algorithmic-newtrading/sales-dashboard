@@ -84,14 +84,16 @@ public class AnalyticsController : ControllerBase
 
     [HttpGet("recent-sales")]
     public async Task<IActionResult> RecentSales(
-        [FromQuery] DateTime from, [FromQuery] DateTime to,
-        [FromQuery] int limit = 20, CancellationToken ct = default)
+        [FromQuery] DateTime from,
+        [FromQuery] DateTime to,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 20,
+        CancellationToken ct = default)
     {
         from = Normalize(from);
         to = Normalize(to);
         if (from >= to)
             return BadRequest(new { error = "Параметр 'from' должен быть меньше 'to'" });
-        if (limit <= 0 || limit > 200) limit = 20;
-        return Ok(await _svc.GetRecentSalesAsync(from, to, limit, ct));
+        return Ok(await _svc.GetRecentSalesAsync(from, to, offset, limit, ct));
     }
 }

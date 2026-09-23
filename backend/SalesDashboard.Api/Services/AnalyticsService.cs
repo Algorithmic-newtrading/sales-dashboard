@@ -234,12 +234,19 @@ public class AnalyticsService
             x.Revenue, x.Qty)).ToList();
     }
 
-    public async Task<List<RecentSaleDto>> GetRecentSalesAsync(
-        DateTime from, DateTime to, int limit, CancellationToken ct)
+    public async Task<PagedResult<RecentSaleDto>> GetRecentSalesAsync(
+        DateTime from, DateTime to, int offset, int limit, CancellationToken ct)
     {
-        return await Paid(_db.Sales)
-            .Where(s => s.Date >= from && s.Date < to)
+        if (offset < 0) offset = 0;
+        if (limit <= 0 || limit > 200) limit = 20;
+
+        var query = Paid(_db.Sales).Where(s => s.Date >= from && s.Date < to);
+
+        var total = await query.CountAsync(ct);
+
+        var items = await query
             .OrderByDescending(s => s.Date)
+            .Skip(offset)
             .Take(limit)
             .Select(s => new RecentSaleDto(
                 s.Id,
@@ -251,5 +258,7 @@ public class AnalyticsService
                 s.Items.Sum(i => (decimal?)(i.Quantity * i.UnitPrice)) ?? 0m,
                 s.Items.Sum(i => (decimal?)(i.Quantity * i.UnitPrice - i.Quantity * i.UnitCost)) ?? 0m))
             .ToListAsync(ct);
+
+        return new PagedResult<RecentSaleDto>(items, total, offset, limit);
     }
 }

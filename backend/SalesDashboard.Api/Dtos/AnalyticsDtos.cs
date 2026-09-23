@@ -62,3 +62,10 @@ public record RecentSaleDto(
     string Status,
     decimal Total,
     decimal GrossProfit);
+
+// Постраничный результат
+public record PagedResult<T>(
+    List<T> Items,
+    int Total,
+    int Offset,
+    int Limit);
