@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRecentSales } from "../api/analytics";
 import { useRange } from "../hooks/useRange";
+import { downloadCsv } from "../utils/csv";
 
 const fmtMoney = (n: number) =>
   n.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
@@ -27,7 +28,18 @@ export function RecentSalesBlock() {
 
   return (
     <div className="rounded-2xl border border-[#232a44] bg-[#151a2d] p-5">
-      <h2 className="text-lg font-semibold mb-3">Последние продажи</h2>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 className="text-lg font-semibold">Последние продажи</h2>
+        <button
+          onClick={() =>
+            downloadCsv(`recent-sales-${range.from}-${range.to}.csv`, sales)
+          }
+          disabled={sales.length === 0}
+          className="px-3 py-1 text-sm rounded-lg border border-[#232a44] text-slate-300 hover:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Экспорт CSV
+        </button>
+      </div>
 
       {isLoading && (
         <div className="space-y-2">

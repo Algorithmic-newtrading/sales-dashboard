@@ -61,10 +61,11 @@ sales-dashboard/
 ├── frontend/
 │   └── src/
 │       ├── api/                    # axios-клиент, эндпоинты
-│       ├── components/             # KpiCard, Timeline, Categories, ...
+│       ├── components/             # KpiCard, Timeline, Categories, ManagerScatter, ...
 │       ├── hooks/                  # useRange (Zustand)
 │       ├── pages/                  # Dashboard
-│       └── types/                  # TS-типы DTO
+│       ├── types/                  # TS-типы DTO
+│       └── utils/                  # csv, smooth
 ├── docker-compose.yml
 ├── README.md
 ├── AI_PROMPTS.md
@@ -91,6 +92,19 @@ http://localhost:8080/api/analytics/kpi?from=2026-08-01&to=2026-09-23
 http://localhost:8080/api/analytics/managers?from=2026-08-01&to=2026-09-23&sortBy=grossProfit
 http://localhost:8080/api/analytics/timeline?from=2026-08-01&to=2026-09-23&granularity=day
 ```
+
+## Dashboard
+
+Единый desktop-экран для руководителя продаж, ~1440×900. Блоки:
+
+1. **KPI-карточки** — выручка, валовая прибыль, маржинальность, количество продаж, средний чек, лучший менеджер. У большинства — дельта к предыдущему периоду.
+2. **Фильтр периода** — пресеты (Сегодня / 7 дней / 30 дней / Этот месяц / Прошлый месяц) + произвольный диапазон `from → to`.
+3. **Динамика** — area chart: Revenue и Gross Profit во времени. Переключатель **«Сырые данные / Сглаженные»** (экспоненциальное сглаживание, α = 0.3).
+4. **Категории** — bar chart по выручке и прибыли.
+5. **Топ-5 продуктов** — список с выручкой и количеством.
+6. **Матрица: объём vs маржа** — scatter plot менеджеров: X = количество продаж, Y = маржинальность %, размер точки = выручка. Помогает найти звёзд (правый верх) и проблемные зоны (правый низ).
+7. **Рейтинг менеджеров** — переключение между Gross Profit и Average Check. В строке: позиция, аватар-инициалы, команда/должность, продажи, выручка, GP, маржа, средний чек. Кнопка **«Экспорт CSV»**.
+8. **Последние продажи** — дата, менеджер, клиент, товары, статус, сумма, GP. Кнопка **«Экспорт CSV»**.
 
 ## Business rules
 
@@ -170,6 +184,21 @@ Seed использует `new Random(fixedSeed)` — при пересозда�
 
 PostgreSQL хранит `timestamp with time zone`. Npgsql требует `DateTimeKind.Utc`. Query-параметры `?from=2026-09-01` приходят как `Unspecified`, поэтому в контроллере даты явно нормализуются в UTC через `DateTime.SpecifyKind(d, DateTimeKind.Utc)`.
 
+### Экспорт CSV
+
+Утилита `utils/csv.ts` — обобщённая функция `downloadCsv<T extends object>(filename, rows)`. Добавляет BOM (`\uFEFF`) для корректной кодировки кириллицы в Excel. Экранирует запятые, кавычки, переводы строк.
+
+### Сглаживание графиков
+
+Утилита `utils/smooth.ts` — простое экспоненциальное сглаживание:
+
+```
+smoothed[0] = raw[0]
+smoothed[i] = α × raw[i] + (1 − α) × smoothed[i−1]
+```
+
+α = 0.3 — баланс между точностью и плавностью. Работает по обеим метрикам: Revenue и Gross Profit.
+
 ### Данные в seed
 
 - 20 менеджеров (18 активных), распределены по 4 командам
@@ -200,16 +229,33 @@ PostgreSQL хранит `timestamp with time zone`. Npgsql требует `DateT
 ```bash
 cd backend
 dotnet test
+```
+
+### Frontend (Vitest, 5 тестов)
+
+- Store `useRange`: пресеты `7d` / `30d` / `today`
+- Custom диапазон
+- Формат `asRange` → строки `YYYY-MM-DD`
+
+Запуск:
+
+```bash
+cd frontend
+npm run test
+```
+
+## Что не успели за 8 часов
+
+Всё заявленное в ТЗ и продуктовых инициативах реализовано.
 
 ## Что улучшили бы дальше
 
-- Добавить тесты на ключевые business rules (Refunded/Cancelled) — критично
+- Экспорт в Excel / PDF
 - Кэширование KPI-запросов (Redis или in-memory на 30 секунд)
 - Партиционирование таблицы Sales по дате при росте до сотен тысяч записей
 - Материализованные представления для тяжёлых агрегатов
 - Аутентификация и разграничение ролей (руководитель / менеджер)
 - Реал-тайм обновление через WebSocket/SignalR
-- Экспорт в Excel / PDF
 - Сравнение произвольных периодов side-by-side
 
 ## Разработка (без Docker)
@@ -235,22 +281,6 @@ npm run dev
 
 Vite-прокси автоматически направляет `/api/*` на `http://localhost:8080`.
 
-## Тесты
-
-**Backend:**
-
-```bash
-cd backend
-dotnet test
-```
-
-**Frontend:**
-
-```bash
-cd frontend
-npm run test
-```
-
 ## Оценка времени
 
 | Этап | Ориентир |
@@ -260,10 +290,13 @@ npm run test
 | Seed-данные | 30 мин |
 | AnalyticsService + контроллер | 1 ч |
 | Компоненты dashboard (UI) | 2 ч |
+| Scatter plot | 30 мин |
+| CSV-экспорт + сглаживание | 30 мин |
+| Тесты (backend + frontend) | 1 ч |
 | Отладка (DateTime, Recharts, Vite proxy) | 1.5 ч |
 | Docker Compose + nginx | 30 мин |
 | Документация | 45 мин |
-| **Итого** | **~7 ч 30 мин** |
+| **Итого** | **~9 ч** |
 
 ## Лицензия
 

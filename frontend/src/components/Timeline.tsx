@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
@@ -11,40 +12,68 @@ import {
 } from "recharts";
 import { getTimeline } from "../api/analytics";
 import { useRange } from "../hooks/useRange";
+import { smoothTimeline } from "../utils/smooth";
 
 export function TimelineBlock() {
   const { asRange } = useRange();
   const range = asRange();
+  const [smooth, setSmooth] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["timeline", range.from, range.to],
     queryFn: () => getTimeline(range, "day"),
   });
 
-
   // Защита: если backend вернул не массив (вдруг обёртка), не падаем
   const safeData = Array.isArray(data) ? data : [];
+  const chartData = smooth ? smoothTimeline(safeData, 0.3) : safeData;
 
   return (
     <div className="rounded-2xl border border-[#232a44] bg-[#151a2d] p-5">
-      <h2 className="text-lg font-semibold mb-3">Динамика</h2>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 className="text-lg font-semibold">Динамика</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSmooth(false)}
+            className={`px-3 py-1 text-sm rounded-lg border ${
+              !smooth
+                ? "bg-indigo-500 border-indigo-500 text-white"
+                : "border-[#232a44] text-slate-300"
+            }`}
+          >
+            Сырые данные
+          </button>
+          <button
+            onClick={() => setSmooth(true)}
+            className={`px-3 py-1 text-sm rounded-lg border ${
+              smooth
+                ? "bg-indigo-500 border-indigo-500 text-white"
+                : "border-[#232a44] text-slate-300"
+            }`}
+          >
+            Сглаженные
+          </button>
+        </div>
+      </div>
 
-      {isLoading && <div className="h-[280px] bg-[#0f1424] rounded-xl animate-pulse" />}
+      {isLoading && (
+        <div className="h-[280px] bg-[#0f1424] rounded-xl animate-pulse" />
+      )}
       {isError && (
         <div className="h-[280px] flex items-center justify-center text-rose-400">
           Ошибка загрузки
         </div>
       )}
 
-      {!isLoading && !isError && safeData.length === 0 && (
+      {!isLoading && !isError && chartData.length === 0 && (
         <div className="h-[280px] flex items-center justify-center text-slate-400">
           Нет данных за период
         </div>
       )}
 
-      {safeData.length > 0 && (
+      {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={safeData}>
+          <AreaChart data={chartData}>
             <defs>
               <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#6366f1" stopOpacity={0.7} />

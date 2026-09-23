@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { getManagers } from "../api/analytics";
 import { useRange } from "../hooks/useRange";
+import { downloadCsv } from "../utils/csv";
 
 const fmtMoney = (n: number) =>
   n.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
@@ -21,9 +22,9 @@ export function ManagerRatingBlock() {
 
   return (
     <div className="rounded-2xl border border-[#232a44] bg-[#151a2d] p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-semibold">Рейтинг менеджеров</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setSortBy("grossProfit")}
             className={`px-3 py-1 text-sm rounded-lg border ${
@@ -43,6 +44,15 @@ export function ManagerRatingBlock() {
             }`}
           >
             По среднему чеку
+          </button>
+          <button
+            onClick={() =>
+              downloadCsv(`managers-${range.from}-${range.to}.csv`, managers)
+            }
+            disabled={managers.length === 0}
+            className="px-3 py-1 text-sm rounded-lg border border-[#232a44] text-slate-300 hover:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Экспорт CSV
           </button>
         </div>
       </div>
