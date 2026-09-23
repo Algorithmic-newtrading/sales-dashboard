@@ -8,6 +8,7 @@ import { TimelineBlock } from "../components/Timeline";
 import { CategoriesBlock } from "../components/Categories";
 import { ManagerScatterBlock } from "../components/ManagerScatter";
 import { RecentSalesBlock } from "../components/RecentSales";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 // Безопасные хелперы — не падают, если значение не число
 const fmtMoney = (n: unknown): string => {
@@ -104,19 +105,29 @@ export function Dashboard() {
         )}
 
         {/* Timeline */}
-        <TimelineBlock />
+        <ErrorBoundary fallbackTitle="Не удалось загрузить динамику">
+          <TimelineBlock />
+        </ErrorBoundary>
 
         {/* Категории + топ продуктов */}
-        <CategoriesBlock />
+        <ErrorBoundary fallbackTitle="Не удалось загрузить категории">
+          <CategoriesBlock />
+        </ErrorBoundary>
 
         {/* Матрица объём vs маржа */}
-        <ManagerScatterBlock />
+        <ErrorBoundary fallbackTitle="Не удалось загрузить матрицу">
+          <ManagerScatterBlock />
+        </ErrorBoundary>
 
         {/* Рейтинг менеджеров */}
-        <ManagerRatingBlock />
+        <ErrorBoundary fallbackTitle="Не удалось загрузить рейтинг">
+          <ManagerRatingBlock />
+        </ErrorBoundary>
 
         {/* Последние продажи */}
-        <RecentSalesBlock />
+        <ErrorBoundary fallbackTitle="Не удалось загрузить продажи">
+          <RecentSalesBlock />
+        </ErrorBoundary>
       </div>
     </div>
   );
