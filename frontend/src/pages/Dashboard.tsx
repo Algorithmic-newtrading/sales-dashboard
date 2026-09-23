@@ -6,6 +6,7 @@ import { PeriodPicker } from "../components/PeriodPicker";
 import { ManagerRatingBlock } from "../components/ManagerRating";
 import { TimelineBlock } from "../components/Timeline";
 import { CategoriesBlock } from "../components/Categories";
+import { ManagerScatterBlock } from "../components/ManagerScatter";
 import { RecentSalesBlock } from "../components/RecentSales";
 
 // Безопасные хелперы — не падают, если значение не число
@@ -27,7 +28,6 @@ export function Dashboard() {
     queryKey: ["kpi", range.from, range.to],
     queryFn: () => getKpi(range),
   });
-
 
   return (
     <div className="min-h-screen bg-[#0b1020] text-slate-100 p-6">
@@ -108,6 +108,9 @@ export function Dashboard() {
 
         {/* Категории + топ продуктов */}
         <CategoriesBlock />
+
+        {/* Матрица объём vs маржа */}
+        <ManagerScatterBlock />
 
         {/* Рейтинг менеджеров */}
         <ManagerRatingBlock />
